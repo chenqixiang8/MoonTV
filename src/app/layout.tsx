@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import ClientLatencySelector from '@/components/ClientLatencySelector';
+
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 
@@ -107,6 +109,7 @@ export default async function RootLayout({
       <body
         className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-black dark:text-gray-200`}
       >
+        <ClientLatencySelector />
         <ThemeProvider
           attribute='class'
           defaultTheme='system'
