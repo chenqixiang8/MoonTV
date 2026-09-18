@@ -2,28 +2,27 @@
 
 import { AdminConfig } from './admin.types';
 import { RedisStorage } from './redis.db';
+import { MysqlStorage } from './mysql.db';
+import { ReplicatedStorage } from './replicated.db';
+import { loadSettings } from './database-settings';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
-// storage type 常量: 'localstorage' | 'redis' | 'upstash'，默认 'localstorage'
-const STORAGE_TYPE =
-  (process.env.NEXT_PUBLIC_STORAGE_TYPE as
-    | 'localstorage'
-    | 'redis'
-    | 'upstash'
-    | undefined) || 'localstorage';
-
-// 创建存储实例
+// 首次配置完成后优先使用管理面板保存的配置。Upstash 为首选，失败时依次回退 Redis、MySQL。
 function createStorage(): IStorage {
-  switch (STORAGE_TYPE) {
-    case 'redis':
-      return new RedisStorage();
-    case 'upstash':
-      return new UpstashRedisStorage();
-    case 'localstorage':
-    default:
-      return null as unknown as IStorage;
+  const cfg = loadSettings();
+  if (cfg?.setupCompleted) {
+    const stores: IStorage[] = [];
+    if (cfg.upstashUrl && cfg.upstashToken) { process.env.UPSTASH_URL=cfg.upstashUrl; process.env.UPSTASH_TOKEN=cfg.upstashToken; stores.push(new UpstashRedisStorage()); }
+    if (cfg.redisUrl) { process.env.REDIS_URL=cfg.redisUrl; stores.push(new RedisStorage()); }
+    if (cfg.mysqlHost) stores.push(new MysqlStorage({host:cfg.mysqlHost,port:cfg.mysqlPort,user:cfg.mysqlUser,password:cfg.mysqlPassword,database:cfg.mysqlDatabase,tablePrefix:cfg.mysqlTablePrefix}));
+    if (stores.length) return new ReplicatedStorage(stores) as unknown as IStorage;
   }
+  const type=process.env.NEXT_PUBLIC_STORAGE_TYPE||'localstorage';
+  if(type==='redis') return new RedisStorage();
+  if(type==='upstash') return new UpstashRedisStorage();
+  if(type==='mysql') return new MysqlStorage({host:process.env.MYSQL_HOST||'127.0.0.1',port:Number(process.env.MYSQL_PORT||3306),user:process.env.MYSQL_USER||'root',password:process.env.MYSQL_PASSWORD||'',database:process.env.MYSQL_DATABASE||'moontv',tablePrefix:process.env.MYSQL_TABLE_PREFIX||'moontv_'});
+  return null as unknown as IStorage;
 }
 
 // 单例存储实例
