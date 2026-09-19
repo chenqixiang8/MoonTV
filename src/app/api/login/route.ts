@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     // 可能是站长，直接读环境变量
     if (
       username === ownerUsername &&
-      password === process.env.PASSWORD
+      password === ownerPassword
     ) {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });

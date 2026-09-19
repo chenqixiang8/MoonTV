@@ -1915,14 +1915,140 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
 
 
 const DatabaseSetupPanel = () => {
-  const [required,setRequired]=useState(false); const [saving,setSaving]=useState(false);
-  const [v,setV]=useState({setupCompleted:false,primary:'upstash',upstashUrl:'',upstashToken:'',redisUrl:'',mysqlHost:'127.0.0.1',mysqlPort:3306,mysqlUser:'root',mysqlPassword:'',mysqlDatabase:'moontv',mysqlTablePrefix:'moontv_',syncEnabled:true,latencyEnabled:true,doubanDataUrls:[],doubanImageUrls:[],cdnUrls:[],siteName:'MoonTV',enableRegister:false,username:'admin',password:'',storageType:'upstash'});
-  const [dataUrls,setDataUrls]=useState(''); const [imageUrls,setImageUrls]=useState(''); const [cdnUrls,setCdnUrls]=useState('');
-  useEffect(()=>{fetch('/api/admin/database-settings').then(r=>r.json()).then(x=>setRequired(Boolean(x.setupRequired))).catch(()=>setRequired(true))},[]);
-  if(!required)return null;
-  const field=(key:string,label:string,type='text')=><label className='block'><span className='text-sm'>{label}</span><input className='mt-1 w-full rounded-lg border p-2 dark:bg-gray-900' type={type} value={(v as any)[key]} onChange={e=>setV({...v,[key]:type==='number'?Number(e.target.value):e.target.value})}/></label>;
-  const save=async()=>{setSaving(true);try{const body={...v,doubanDataUrls:dataUrls.split('\n').map(x=>x.trim()).filter(Boolean),doubanImageUrls:imageUrls.split('\n').map(x=>x.trim()).filter(Boolean),cdnUrls:cdnUrls.split('\n').map(x=>x.trim()).filter(Boolean)};const r=await fetch('/api/admin/database-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)throw new Error(x.error);showSuccess(x.message+'，重启服务后生效');setRequired(false)}catch(e){showError(e instanceof Error?e.message:'设置失败')}finally{setSaving(false)}};
-  return <div className='mb-6 rounded-xl border-2 border-amber-400 bg-amber-50 p-5 dark:bg-amber-950/30'><h2 className='text-xl font-bold'>首次数据库与自动测速设置</h2><p className='my-2 text-sm'>此步骤只显示一次。保存时会测试 Redis、创建 MySQL 数据表，并写入后续自动同步配置。运行时优先 Upstash，失连则自动回退 Redis、MySQL。</p><div className='grid gap-3 md:grid-cols-2'>{field('upstashUrl','Upstash REST URL')}{field('upstashToken','Upstash Token','password')}{field('redisUrl','Redis URL')}{field('mysqlHost','MySQL 地址')}{field('mysqlPort','MySQL 端口','number')}{field('mysqlUser','MySQL 用户')}{field('mysqlPassword','MySQL 密码','password')}{field('mysqlDatabase','MySQL 数据库')}{field('mysqlTablePrefix','MySQL 数据表前缀')}{field('siteName','站点名称')}{field('username','站长用户名')}{field('password','站长密码','password')}<label className='block'><span className='text-sm'>存储类型</span><select className='mt-1 w-full rounded-lg border p-2 dark:bg-gray-900' value={v.storageType} onChange={e=>setV({...v,storageType:e.target.value as any})}><option value='upstash'>Upstash</option><option value='redis'>Redis</option><option value='mysql'>MySQL</option></select></label><label className='flex items-center gap-2'><input type='checkbox' checked={v.enableRegister} onChange={e=>setV({...v,enableRegister:e.target.checked})}/>允许注册</label></div><div className='mt-3 grid gap-3 md:grid-cols-3'><textarea className='rounded border p-2 dark:bg-gray-900' placeholder='豆瓣数据候选 URL，每行一个' value={dataUrls} onChange={e=>setDataUrls(e.target.value)}/><textarea className='rounded border p-2 dark:bg-gray-900' placeholder='豆瓣图片候选 URL，每行一个' value={imageUrls} onChange={e=>setImageUrls(e.target.value)}/><textarea className='rounded border p-2 dark:bg-gray-900' placeholder='CDN 候选 URL，每行一个' value={cdnUrls} onChange={e=>setCdnUrls(e.target.value)}/></div><button className='mt-4 rounded-lg bg-amber-600 px-4 py-2 text-white disabled:opacity-50' disabled={saving} onClick={save}>{saving?'正在测试并初始化…':'测试连接、建表并完成首次同步设置'}</button></div>;
+  const [required, setRequired] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [v, setV] = useState({
+    setupCompleted: false,
+    primary: 'upstash',
+    upstashUrl: '',
+    upstashToken: '',
+    redisUrl: '',
+    mysqlHost: '',
+    mysqlPort: 3306,
+    mysqlUser: '',
+    mysqlPassword: '',
+    mysqlDatabase: 'moontv',
+    mysqlTablePrefix: 'moontv_',
+    syncEnabled: true,
+    latencyEnabled: true,
+    doubanDataUrls: [] as string[],
+    doubanImageUrls: [] as string[],
+    cdnUrls: [] as string[],
+    siteName: 'MoonTV',
+    enableRegister: false,
+    username: 'admin',
+    password: '',
+    storageType: 'upstash',
+  });
+  const [dataUrls, setDataUrls] = useState('');
+  const [imageUrls, setImageUrls] = useState('');
+  const [cdnUrls, setCdnUrls] = useState('');
+
+  useEffect(() => {
+    fetch('/api/admin/database-settings')
+      .then((r) => r.json())
+      .then((x) => setRequired(Boolean(x.setupRequired)))
+      .catch(() => setRequired(true));
+  }, []);
+
+  if (!required) return null;
+
+  const field = (key: string, label: string, type = 'text') => (
+    <label className='block'>
+      <span className='text-sm'>{label}</span>
+      <input
+        className='mt-1 w-full rounded-lg border p-2 dark:bg-gray-900'
+        type={type}
+        value={(v as any)[key]}
+        onChange={(e) =>
+          setV({
+            ...v,
+            [key]: type === 'number' ? Number(e.target.value) : e.target.value,
+          })
+        }
+      />
+    </label>
+  );
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        ...v,
+        doubanDataUrls: dataUrls.split('\n').map((x) => x.trim()).filter(Boolean),
+        doubanImageUrls: imageUrls.split('\n').map((x) => x.trim()).filter(Boolean),
+        cdnUrls: cdnUrls.split('\n').map((x) => x.trim()).filter(Boolean),
+      };
+      const r = await fetch('/api/admin/database-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const x = await r.json();
+      if (!r.ok) throw new Error(x.error || '设置失败');
+      showSuccess(x.message || '首次同步设置已完成');
+      setRequired(false);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : '设置失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className='mb-6 rounded-xl border-2 border-amber-400 bg-amber-50 p-5 dark:bg-amber-950/30'>
+      <h2 className='text-xl font-bold'>首次数据库与自动测速设置</h2>
+      <p className='my-2 text-sm'>
+        此步骤只显示一次。系统将测试 Redis 和 MySQL、创建数据表，并把远程变量加密缓存到 Upstash。
+      </p>
+      <div className='grid gap-3 md:grid-cols-2'>
+        {field('upstashUrl', 'Upstash REST URL')}
+        {field('upstashToken', 'Upstash Token', 'password')}
+        {field('redisUrl', 'Redis URL')}
+        {field('mysqlHost', 'MySQL 地址')}
+        {field('mysqlPort', 'MySQL 端口', 'number')}
+        {field('mysqlUser', 'MySQL 用户')}
+        {field('mysqlPassword', 'MySQL 密码', 'password')}
+        {field('mysqlDatabase', 'MySQL 数据库')}
+        {field('mysqlTablePrefix', 'MySQL 数据表前缀')}
+        {field('siteName', '站点名称')}
+        {field('username', '站长用户名')}
+        {field('password', '站长密码', 'password')}
+        <label className='block'>
+          <span className='text-sm'>存储类型</span>
+          <select
+            className='mt-1 w-full rounded-lg border p-2 dark:bg-gray-900'
+            value={v.storageType}
+            onChange={(e) => setV({ ...v, storageType: e.target.value })}
+          >
+            <option value='upstash'>Upstash</option>
+            <option value='redis'>Redis</option>
+            <option value='mysql'>MySQL</option>
+          </select>
+        </label>
+        <label className='flex items-center gap-2'>
+          <input
+            type='checkbox'
+            checked={v.enableRegister}
+            onChange={(e) => setV({ ...v, enableRegister: e.target.checked })}
+          />
+          允许注册
+        </label>
+      </div>
+      <div className='mt-3 grid gap-3 md:grid-cols-3'>
+        <textarea className='rounded border p-2 dark:bg-gray-900' placeholder='豆瓣数据候选 URL，每行一个' value={dataUrls} onChange={(e) => setDataUrls(e.target.value)} />
+        <textarea className='rounded border p-2 dark:bg-gray-900' placeholder='豆瓣图片候选 URL，每行一个' value={imageUrls} onChange={(e) => setImageUrls(e.target.value)} />
+        <textarea className='rounded border p-2 dark:bg-gray-900' placeholder='CDN 候选 URL，每行一个' value={cdnUrls} onChange={(e) => setCdnUrls(e.target.value)} />
+      </div>
+      <button
+        className='mt-4 rounded-lg bg-amber-600 px-4 py-2 text-white disabled:opacity-50'
+        disabled={saving}
+        onClick={save}
+      >
+        {saving ? '正在测试并初始化…' : '测试连接、建表并完成首次同步设置'}
+      </button>
+    </div>
+  );
 };
 
 function AdminPageClient() {
