@@ -15,5 +15,6 @@
       "path": "/api/cron",
       "schedule": "0 1 * * *"
     }
-  ]
+  ],
+  "installCommand": "pnpm install --no-frozen-lockfile"
 }
