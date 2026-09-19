@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取存储实例
-    const storage: IStorage | null = getStorage();
+    const storage: IStorage | null = await getStorage();
     if (!storage || typeof storage.changePassword !== 'function') {
       return NextResponse.json(
         { error: '存储服务不支持修改密码' },

@@ -9,8 +9,8 @@ import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
 // 首次配置完成后优先使用管理面板保存的配置。Upstash 为首选，失败时依次回退 Redis、MySQL。
-function createStorage(): IStorage {
-  const cfg = loadSettings();
+async function createStorage(): Promise<IStorage> {
+  const cfg = await loadSettings();
   if (cfg?.setupCompleted) {
     const stores: IStorage[] = [];
     if (cfg.upstashUrl && cfg.upstashToken) { process.env.UPSTASH_URL=cfg.upstashUrl; process.env.UPSTASH_TOKEN=cfg.upstashToken; stores.push(new UpstashRedisStorage()); }
@@ -26,12 +26,10 @@ function createStorage(): IStorage {
 }
 
 // 单例存储实例
-let storageInstance: IStorage | null = null;
+let storageInstance: Promise<IStorage> | null = null;
 
-export function getStorage(): IStorage {
-  if (!storageInstance) {
-    storageInstance = createStorage();
-  }
+export async function getStorage(): Promise<IStorage> {
+  if (!storageInstance) storageInstance = createStorage();
   return storageInstance;
 }
 
@@ -45,7 +43,12 @@ export class DbManager {
   private storage: IStorage;
 
   constructor() {
-    this.storage = getStorage();
+    this.storage = null as unknown as IStorage;
+  }
+
+  private async db(): Promise<IStorage> {
+    if (!this.storage) this.storage = await getStorage();
+    return this.storage;
   }
 
   // 播放记录相关方法
@@ -55,7 +58,7 @@ export class DbManager {
     id: string
   ): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
-    return this.storage.getPlayRecord(userName, key);
+    return (await this.db()).getPlayRecord(userName, key);
   }
 
   async savePlayRecord(
@@ -65,13 +68,13 @@ export class DbManager {
     record: PlayRecord
   ): Promise<void> {
     const key = generateStorageKey(source, id);
-    await this.storage.setPlayRecord(userName, key, record);
+    await (await this.db()).setPlayRecord(userName, key, record);
   }
 
   async getAllPlayRecords(userName: string): Promise<{
     [key: string]: PlayRecord;
   }> {
-    return this.storage.getAllPlayRecords(userName);
+    return (await this.db()).getAllPlayRecords(userName);
   }
 
   async deletePlayRecord(
@@ -80,7 +83,7 @@ export class DbManager {
     id: string
   ): Promise<void> {
     const key = generateStorageKey(source, id);
-    await this.storage.deletePlayRecord(userName, key);
+    await (await this.db()).deletePlayRecord(userName, key);
   }
 
   // 收藏相关方法
@@ -90,7 +93,7 @@ export class DbManager {
     id: string
   ): Promise<Favorite | null> {
     const key = generateStorageKey(source, id);
-    return this.storage.getFavorite(userName, key);
+    return (await this.db()).getFavorite(userName, key);
   }
 
   async saveFavorite(
@@ -100,13 +103,13 @@ export class DbManager {
     favorite: Favorite
   ): Promise<void> {
     const key = generateStorageKey(source, id);
-    await this.storage.setFavorite(userName, key, favorite);
+    await (await this.db()).setFavorite(userName, key, favorite);
   }
 
   async getAllFavorites(
     userName: string
   ): Promise<{ [key: string]: Favorite }> {
-    return this.storage.getAllFavorites(userName);
+    return (await this.db()).getAllFavorites(userName);
   }
 
   async deleteFavorite(
@@ -115,7 +118,7 @@ export class DbManager {
     id: string
   ): Promise<void> {
     const key = generateStorageKey(source, id);
-    await this.storage.deleteFavorite(userName, key);
+    await (await this.db()).deleteFavorite(userName, key);
   }
 
   async isFavorited(
@@ -129,29 +132,29 @@ export class DbManager {
 
   // ---------- 用户相关 ----------
   async registerUser(userName: string, password: string): Promise<void> {
-    await this.storage.registerUser(userName, password);
+    await (await this.db()).registerUser(userName, password);
   }
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
-    return this.storage.verifyUser(userName, password);
+    return (await this.db()).verifyUser(userName, password);
   }
 
   // 检查用户是否已存在
   async checkUserExist(userName: string): Promise<boolean> {
-    return this.storage.checkUserExist(userName);
+    return (await this.db()).checkUserExist(userName);
   }
 
   // ---------- 搜索历史 ----------
   async getSearchHistory(userName: string): Promise<string[]> {
-    return this.storage.getSearchHistory(userName);
+    return (await this.db()).getSearchHistory(userName);
   }
 
   async addSearchHistory(userName: string, keyword: string): Promise<void> {
-    await this.storage.addSearchHistory(userName, keyword);
+    await (await this.db()).addSearchHistory(userName, keyword);
   }
 
   async deleteSearchHistory(userName: string, keyword?: string): Promise<void> {
-    await this.storage.deleteSearchHistory(userName, keyword);
+    await (await this.db()).deleteSearchHistory(userName, keyword);
   }
 
   // 获取全部用户名

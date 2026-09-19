@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // 获取配置与存储
     const adminConfig = await getConfig();
-    const storage: IStorage | null = getStorage();
+    const storage: IStorage | null = await getStorage();
 
     // 权限与身份校验
     if (username !== process.env.USERNAME) {

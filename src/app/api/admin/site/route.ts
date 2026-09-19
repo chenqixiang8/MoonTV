@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const adminConfig = await getConfig();
-    const storage = getStorage();
+    const storage = await getStorage();
 
     // 权限校验
     if (username !== process.env.USERNAME) {
