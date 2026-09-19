@@ -39,7 +39,8 @@ async function generateAuthCookie(
   username?: string,
   password?: string,
   role?: 'owner' | 'admin' | 'user',
-  includePassword = false
+  includePassword = false,
+  signingSecret = ''
 ): Promise<string> {
   const authData: any = { role: role || 'user' };
 
@@ -48,10 +49,10 @@ async function generateAuthCookie(
     authData.password = password;
   }
 
-  if (username && ownerPassword) {
+  if (username && signingSecret) {
     authData.username = username;
     // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, ownerPassword);
+    const signature = await generateSignature(username, signingSecret);
     authData.signature = signature;
     authData.timestamp = Date.now(); // 添加时间戳防重放攻击
   }
@@ -103,7 +104,8 @@ export async function POST(req: NextRequest) {
         undefined,
         password,
         'user',
-        true
+        true,
+        ownerPassword
       ); // localstorage 模式包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -140,7 +142,8 @@ export async function POST(req: NextRequest) {
         username,
         password,
         'owner',
-        false
+        false,
+        ownerPassword
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -180,7 +183,8 @@ export async function POST(req: NextRequest) {
         username,
         password,
         user?.role || 'user',
-        false
+        false,
+        ownerPassword
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
