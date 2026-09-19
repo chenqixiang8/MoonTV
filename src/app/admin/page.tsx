@@ -2165,18 +2165,34 @@ function AdminPageClient() {
               管理员设置
             </h1>
             {config && role === 'owner' && (
-              <button
-                onClick={async () => { try { const r=await fetch('/api/admin/remote-config',{method:'POST'}); const x=await r.json(); if(!r.ok) throw new Error(x.error); showSuccess(`远程变量已更新，来源：${x.source}`); window.location.reload(); } catch(e) { showError(e instanceof Error?e.message:'更新失败'); } }}
-                className='px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors'
-              >
-                手动更新变量
-              </button>
-              <button
-                onClick={handleResetConfig}
-                className='px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-md transition-colors'
-              >
-                重置配置
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/admin/remote-config', {
+                        method: 'POST',
+                      });
+                      const data = await response.json();
+                      if (!response.ok) {
+                        throw new Error(data.error || '更新失败');
+                      }
+                      showSuccess(`远程变量已更新，来源：${data.source}`);
+                      window.location.reload();
+                    } catch (err) {
+                      showError(err instanceof Error ? err.message : '更新失败');
+                    }
+                  }}
+                  className='px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors'
+                >
+                  手动更新变量
+                </button>
+                <button
+                  onClick={handleResetConfig}
+                  className='px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-md transition-colors'
+                >
+                  重置配置
+                </button>
+              </>
             )}
           </div>
 
