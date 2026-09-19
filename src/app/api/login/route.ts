@@ -3,16 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { loadSettings } from '@/lib/database-settings';
 
 export const runtime = 'nodejs';
-
-// 读取存储类型环境变量，默认 localstorage
-const STORAGE_TYPE =
-  (process.env.NEXT_PUBLIC_STORAGE_TYPE as
-    | 'localstorage'
-    | 'redis'
-    | 'upstash'
-    | undefined) || 'localstorage';
 
 // 生成签名
 async function generateSignature(
@@ -55,10 +48,10 @@ async function generateAuthCookie(
     authData.password = password;
   }
 
-  if (username && process.env.PASSWORD) {
+  if (username && ownerPassword) {
     authData.username = username;
     // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, process.env.PASSWORD);
+    const signature = await generateSignature(username, ownerPassword);
     authData.signature = signature;
     authData.timestamp = Date.now(); // 添加时间戳防重放攻击
   }
@@ -68,9 +61,13 @@ async function generateAuthCookie(
 
 export async function POST(req: NextRequest) {
   try {
+    const runtimeSettings = await loadSettings();
+    const STORAGE_TYPE = runtimeSettings?.storageType || 'localstorage';
+    const ownerPassword = runtimeSettings?.password || '';
+    const ownerUsername = runtimeSettings?.username || '';
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
-      const envPassword = process.env.PASSWORD;
+      const envPassword = ownerPassword;
 
       // 未配置 PASSWORD 时直接放行
       if (!envPassword) {
@@ -134,7 +131,7 @@ export async function POST(req: NextRequest) {
 
     // 可能是站长，直接读环境变量
     if (
-      username === process.env.USERNAME &&
+      username === ownerUsername &&
       password === process.env.PASSWORD
     ) {
       // 验证成功，设置认证cookie
@@ -157,7 +154,7 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } else if (username === process.env.USERNAME) {
+    } else if (username === ownerUsername) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 

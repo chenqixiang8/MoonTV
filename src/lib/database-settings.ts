@@ -1,63 +1,29 @@
+import { Redis } from '@upstash/redis';
+
 export interface DatabaseSettings {
   setupCompleted: boolean;
   primary: 'upstash' | 'redis' | 'mysql';
-  upstashUrl: string;
-  upstashToken: string;
-  redisUrl: string;
-  mysqlHost: string;
-  mysqlPort: number;
-  mysqlUser: string;
-  mysqlPassword: string;
-  mysqlDatabase: string;
-  mysqlTablePrefix: string;
-  syncEnabled: boolean;
-  latencyEnabled: boolean;
-  doubanDataUrls: string[];
-  doubanImageUrls: string[];
-  cdnUrls: string[];
+  upstashUrl: string; upstashToken: string; redisUrl: string;
+  mysqlHost: string; mysqlPort: number; mysqlUser: string; mysqlPassword: string;
+  mysqlDatabase: string; mysqlTablePrefix: string;
+  syncEnabled: boolean; latencyEnabled: boolean;
+  doubanDataUrls: string[]; doubanImageUrls: string[]; cdnUrls: string[];
+  siteName: string; enableRegister: boolean; username: string; password: string;
+  storageType: 'localstorage' | 'redis' | 'upstash' | 'mysql';
 }
+type RemoteResponse={success:boolean;config?:DatabaseSettings|null;error?:string};
+const CACHE_KEY='moontv:remote-config:encrypted:v1';
+let memory:{value:DatabaseSettings|null;expires:number;source:'remote'|'upstash'}|null=null;
 
-type RemoteResponse = { success: boolean; config?: DatabaseSettings; error?: string };
-let cache: { value: DatabaseSettings | null; expires: number } | null = null;
-
-function remoteConfig() {
-  const url = process.env.REMOTE_CONFIG_URL;
-  const token = process.env.REMOTE_CONFIG_TOKEN;
-  if (!url || !token) throw new Error('REMOTE_CONFIG_URL 或 REMOTE_CONFIG_TOKEN 未设置');
-  return { url, token };
-}
-
-export async function loadSettings(force = false): Promise<DatabaseSettings | null> {
-  if (!force && cache && cache.expires > Date.now()) return cache.value;
-  const { url, token } = remoteConfig();
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-    cache: 'no-store',
-    signal: AbortSignal.timeout(8000),
-  });
-  const body = (await response.json().catch(() => null)) as RemoteResponse | null;
-  if (!response.ok || !body?.success) throw new Error(body?.error || `远程配置读取失败: HTTP ${response.status}`);
-  const value = body.config || null;
-  cache = { value, expires: Date.now() + 30000 };
-  return value;
-}
-
-export async function saveSettings(value: DatabaseSettings): Promise<void> {
-  const { url, token } = remoteConfig();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(value),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(12000),
-  });
-  const body = (await response.json().catch(() => null)) as RemoteResponse | null;
-  if (!response.ok || !body?.success) throw new Error(body?.error || `远程配置保存失败: HTTP ${response.status}`);
-  cache = { value, expires: Date.now() + 30000 };
-}
-
-export function publicSettings(value: DatabaseSettings | null) {
-  if (!value) return null;
-  return { ...value, upstashToken: value.upstashToken ? '********' : '', mysqlPassword: value.mysqlPassword ? '********' : '', redisUrl: value.redisUrl ? '********' : '' };
-}
+function bootstrap(){const url=process.env.REMOTE_CONFIG_URL;const token=process.env.REMOTE_CONFIG_TOKEN;const upstashUrl=process.env.UPSTASH_URL;const upstashToken=process.env.UPSTASH_TOKEN;if(!url||!token)throw new Error('REMOTE_CONFIG_URL 或 REMOTE_CONFIG_TOKEN 未设置');return{url,token,upstashUrl,upstashToken}}
+function bytesToBase64(v:Uint8Array){return Buffer.from(v).toString('base64')}
+function base64ToBytes(v:string){return new Uint8Array(Buffer.from(v,'base64'))}
+async function cryptoKey(secret:string){const raw=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(secret));return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt'])}
+async function encrypt(value:DatabaseSettings,secret:string){const iv=crypto.getRandomValues(new Uint8Array(12));const key=await cryptoKey(secret);const data=new TextEncoder().encode(JSON.stringify(value));const out=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode('MoonTV-Upstash-Config-v1')},key,data);return `${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(out))}`}
+async function decrypt(payload:string,secret:string){const [a,b]=payload.split('.');if(!a||!b)throw new Error('缓存格式无效');const key=await cryptoKey(secret);const out=await crypto.subtle.decrypt({name:'AES-GCM',iv:base64ToBytes(a),additionalData:new TextEncoder().encode('MoonTV-Upstash-Config-v1')},key,base64ToBytes(b));return JSON.parse(new TextDecoder().decode(out)) as DatabaseSettings}
+function fallbackClient(){const b=bootstrap();return b.upstashUrl&&b.upstashToken?new Redis({url:b.upstashUrl,token:b.upstashToken}):null}
+export function applyRuntimeSettings(v:DatabaseSettings|null){if(!v)return;process.env.SITE_NAME=v.siteName;process.env.NEXT_PUBLIC_SITE_NAME=v.siteName;process.env.NEXT_PUBLIC_ENABLE_REGISTER=String(v.enableRegister);process.env.USERNAME=v.username;process.env.PASSWORD=v.password;process.env.NEXT_PUBLIC_STORAGE_TYPE=v.storageType;process.env.UPSTASH_URL=v.upstashUrl;process.env.UPSTASH_TOKEN=v.upstashToken;process.env.REDIS_URL=v.redisUrl;process.env.MYSQL_HOST=v.mysqlHost;process.env.MYSQL_PORT=String(v.mysqlPort);process.env.MYSQL_USER=v.mysqlUser;process.env.MYSQL_PASSWORD=v.mysqlPassword;process.env.MYSQL_DATABASE=v.mysqlDatabase;process.env.MYSQL_TABLE_PREFIX=v.mysqlTablePrefix}
+export async function loadSettings(force=false):Promise<DatabaseSettings|null>{if(!force&&memory&&memory.expires>Date.now()){applyRuntimeSettings(memory.value);return memory.value}const b=bootstrap();try{const r=await fetch(b.url,{headers:{Authorization:`Bearer ${b.token}`,Accept:'application/json'},cache:'no-store',signal:AbortSignal.timeout(8000)});const body=await r.json().catch(()=>null) as RemoteResponse|null;if(!r.ok||!body?.success)throw new Error(body?.error||`HTTP ${r.status}`);const value=body.config||null;if(value){const c=fallbackClient();if(c)await c.set(CACHE_KEY,await encrypt(value,b.token))}memory={value,expires:Date.now()+300000,source:'remote'};applyRuntimeSettings(value);return value}catch(remoteError){const c=fallbackClient();if(!c)throw remoteError;const payload=await c.get<string>(CACHE_KEY);if(!payload)throw remoteError;const value=await decrypt(payload,b.token);memory={value,expires:Date.now()+300000,source:'upstash'};applyRuntimeSettings(value);return value}}
+export async function saveSettings(v:DatabaseSettings){const b=bootstrap();const r=await fetch(b.url,{method:'POST',headers:{Authorization:`Bearer ${b.token}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(v),cache:'no-store',signal:AbortSignal.timeout(12000)});const body=await r.json().catch(()=>null) as RemoteResponse|null;if(!r.ok||!body?.success)throw new Error(body?.error||`HTTP ${r.status}`);const c=fallbackClient();if(c)await c.set(CACHE_KEY,await encrypt(v,b.token));memory={value:v,expires:Date.now()+300000,source:'remote'};applyRuntimeSettings(v)}
+export function publicSettings(v:DatabaseSettings|null){if(!v)return null;return{...v,upstashToken:v.upstashToken?'********':'',redisUrl:v.redisUrl?'********':'',mysqlPassword:v.mysqlPassword?'********':'',password:v.password?'********':''}}
+export function cacheStatus(){return memory?{source:memory.source,expires:memory.expires}:null}
