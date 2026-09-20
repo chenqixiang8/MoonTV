@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
+import { loadSettings, saveSettings } from '@/lib/database-settings';
 import { IStorage } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -22,7 +23,8 @@ const ACTIONS = [
 ] as const;
 
 export async function POST(request: NextRequest) {
-  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  const runtimeSettings = await loadSettings();
+  const storageType = runtimeSettings?.storageType || 'localstorage';
   if (storageType === 'localstorage') {
     return NextResponse.json(
       {
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     // 判定操作者角色
     let operatorRole: 'owner' | 'admin';
-    if (username === process.env.USERNAME) {
+    if (username === runtimeSettings?.username) {
       operatorRole = 'owner';
     } else {
       const userEntry = adminConfig.UserConfig.Users.find(
@@ -314,6 +316,13 @@ export async function POST(request: NextRequest) {
     // 将更新后的配置写入数据库
     if (storage && typeof (storage as any).setAdminConfig === 'function') {
       await (storage as any).setAdminConfig(adminConfig);
+    }
+
+    if (runtimeSettings && action === 'setAllowRegister') {
+      await saveSettings({
+        ...runtimeSettings,
+        enableRegister: Boolean(allowRegister),
+      });
     }
 
     return NextResponse.json(

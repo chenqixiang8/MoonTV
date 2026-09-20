@@ -149,9 +149,7 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
   const currentUsername = getAuthInfoFromBrowserCookie()?.username || null;
 
   // 检测存储类型是否为 upstash
-  const isUpstashStorage =
-    typeof window !== 'undefined' &&
-    (window as any).RUNTIME_CONFIG?.STORAGE_TYPE === 'upstash';
+  const isUpstashStorage = false;
 
   useEffect(() => {
     if (config?.UserConfig) {
@@ -320,7 +318,7 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
             允许新用户注册
             {isUpstashStorage && (
               <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-                (Upstash 环境下请通过环境变量修改)
+                (可在后台保存并同步)
               </span>
             )}
           </label>
@@ -983,9 +981,7 @@ const CategoryConfig = ({
   });
 
   // 检测存储类型是否为 upstash
-  const isUpstashStorage =
-    typeof window !== 'undefined' &&
-    (window as any).RUNTIME_CONFIG?.STORAGE_TYPE === 'upstash';
+  const isUpstashStorage = false;
 
   // dnd-kit 传感器
   const sensors = useSensors(
@@ -1391,9 +1387,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
   };
 
   // 检测存储类型是否为 upstash
-  const isUpstashStorage =
-    typeof window !== 'undefined' &&
-    (window as any).RUNTIME_CONFIG?.STORAGE_TYPE === 'upstash';
+  const isUpstashStorage = false;
 
   useEffect(() => {
     if (config?.SiteConfig) {
@@ -1507,7 +1501,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
           站点名称
           {isUpstashStorage && (
             <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-              (Upstash 环境下请通过环境变量修改)
+              (可在后台保存并同步)
             </span>
           )}
         </label>
@@ -1535,7 +1529,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
           站点公告
           {isUpstashStorage && (
             <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-              (Upstash 环境下请通过环境变量修改)
+              (可在后台保存并同步)
             </span>
           )}
         </label>
@@ -1567,7 +1561,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
             豆瓣数据代理
             {isUpstashStorage && (
               <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-                (Upstash 环境下请通过环境变量修改)
+                (可在后台保存并同步)
               </span>
             )}
           </label>
@@ -1693,7 +1687,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
             豆瓣图片代理
             {isUpstashStorage && (
               <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-                (Upstash 环境下请通过环境变量修改)
+                (可在后台保存并同步)
               </span>
             )}
           </label>
@@ -1861,7 +1855,7 @@ const SiteConfigComponent = ({ config }: { config: AdminConfig | null }) => {
             禁用黄色过滤器
             {isUpstashStorage && (
               <span className='ml-2 text-xs text-gray-500 dark:text-gray-400'>
-                (Upstash 环境下请通过环境变量修改)
+                (可在后台保存并同步)
               </span>
             )}
           </label>
@@ -1935,6 +1929,14 @@ const DatabaseSetupPanel = () => {
     doubanImageUrls: [] as string[],
     cdnUrls: [] as string[],
     siteName: 'MoonTV',
+    announcement: '',
+    searchDownstreamMaxPage: 5,
+    siteInterfaceCacheTime: 7200,
+    doubanProxyType: 'direct',
+    doubanProxy: '',
+    doubanImageProxyType: 'direct',
+    doubanImageProxy: '',
+    disableYellowFilter: false,
     enableRegister: false,
     username: 'admin',
     password: '',

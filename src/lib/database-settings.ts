@@ -9,6 +9,9 @@ export interface DatabaseSettings {
   syncEnabled: boolean; latencyEnabled: boolean;
   doubanDataUrls: string[]; doubanImageUrls: string[]; cdnUrls: string[];
   siteName: string; enableRegister: boolean; username: string; password: string;
+  announcement?: string; searchDownstreamMaxPage?: number; siteInterfaceCacheTime?: number;
+  doubanProxyType?: string; doubanProxy?: string;
+  doubanImageProxyType?: string; doubanImageProxy?: string; disableYellowFilter?: boolean;
   storageType: 'localstorage' | 'redis' | 'upstash' | 'mysql';
 }
 type RemoteResponse={success:boolean;config?:DatabaseSettings|null;error?:string};

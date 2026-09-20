@@ -5,11 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
+import { loadSettings, saveSettings } from '@/lib/database-settings';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  const runtimeSettings = await loadSettings();
+  const storageType = runtimeSettings?.storageType || 'localstorage';
   if (storageType === 'localstorage') {
     return NextResponse.json(
       {
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
     const storage = await getStorage();
 
     // 权限校验
-    if (username !== process.env.USERNAME) {
+    if (username !== runtimeSettings?.username) {
       // 管理员
       const user = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
@@ -95,6 +97,22 @@ export async function POST(request: NextRequest) {
     // 写入数据库
     if (storage && typeof (storage as any).setAdminConfig === 'function') {
       await (storage as any).setAdminConfig(adminConfig);
+    }
+
+    if (runtimeSettings) {
+      await saveSettings({
+        ...runtimeSettings,
+        siteName: SiteName,
+        announcement: Announcement,
+        searchDownstreamMaxPage: SearchDownstreamMaxPage,
+        siteInterfaceCacheTime: SiteInterfaceCacheTime,
+        doubanProxyType: DoubanProxyType,
+        doubanProxy: DoubanProxy,
+        doubanImageProxyType: DoubanImageProxyType,
+        doubanImageProxy: DoubanImageProxy,
+        disableYellowFilter: DisableYellowFilter,
+        enableRegister: adminConfig.UserConfig.AllowRegister,
+      });
     }
 
     return NextResponse.json(
