@@ -8,14 +8,31 @@ import { loadSettings } from './database-settings';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
-// 首次配置完成后优先使用管理面板保存的配置。Upstash 为首选，失败时依次回退 Redis、MySQL。
+// 首次配置完成后优先使用 Redis，Redis 失联时回退 MySQL，仅在 Redis 与 MySQL 均失联后使用 Upstash。写操作仍同步到全部可用存储。
 async function createStorage(): Promise<IStorage> {
   const cfg = await loadSettings();
   if (cfg?.setupCompleted) {
     const stores: IStorage[] = [];
-    if (cfg.upstashUrl && cfg.upstashToken) { process.env.UPSTASH_URL=cfg.upstashUrl; process.env.UPSTASH_TOKEN=cfg.upstashToken; stores.push(new UpstashRedisStorage()); }
-    if (cfg.redisUrl) { process.env.REDIS_URL=cfg.redisUrl; stores.push(new RedisStorage()); }
-    if (cfg.mysqlHost) stores.push(new MysqlStorage({host:cfg.mysqlHost,port:cfg.mysqlPort,user:cfg.mysqlUser,password:cfg.mysqlPassword,database:cfg.mysqlDatabase,tablePrefix:cfg.mysqlTablePrefix}));
+    // 读取优先级由 stores 顺序决定：Redis -> MySQL -> Upstash。
+    if (cfg.redisUrl) {
+      process.env.REDIS_URL = cfg.redisUrl;
+      stores.push(new RedisStorage());
+    }
+    if (cfg.mysqlHost) {
+      stores.push(new MysqlStorage({
+        host: cfg.mysqlHost,
+        port: cfg.mysqlPort,
+        user: cfg.mysqlUser,
+        password: cfg.mysqlPassword,
+        database: cfg.mysqlDatabase,
+        tablePrefix: cfg.mysqlTablePrefix,
+      }));
+    }
+    if (cfg.upstashUrl && cfg.upstashToken) {
+      process.env.UPSTASH_URL = cfg.upstashUrl;
+      process.env.UPSTASH_TOKEN = cfg.upstashToken;
+      stores.push(new UpstashRedisStorage());
+    }
     if (stores.length) return new ReplicatedStorage(stores) as unknown as IStorage;
   }
   const type=process.env.NEXT_PUBLIC_STORAGE_TYPE||'localstorage';
