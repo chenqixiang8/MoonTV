@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
-import { fetchDoubanData } from '@/lib/douban';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 
 interface DoubanCategoryApiResponse {
@@ -20,7 +19,42 @@ interface DoubanCategoryApiResponse {
   }>;
 }
 
-export const runtime = 'nodejs';
+async function fetchDoubanData(
+  url: string
+): Promise<DoubanCategoryApiResponse> {
+  // 添加超时控制
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
+  // 设置请求选项，包括信号和头部
+  const fetchOptions = {
+    signal: controller.signal,
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      Referer: 'https://movie.douban.com/',
+      Accept: 'application/json, text/plain, */*',
+      Origin: 'https://movie.douban.com',
+    },
+  };
+
+  try {
+    // 尝试直接访问豆瓣API
+    const response = await fetch(url, fetchOptions);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -65,7 +99,7 @@ export async function GET(request: Request) {
 
   try {
     // 调用豆瓣 API
-    const doubanData = await fetchDoubanData<DoubanCategoryApiResponse>(target);
+    const doubanData = await fetchDoubanData(target);
 
     // 转换数据格式
     const list: DoubanItem[] = doubanData.items.map((item) => ({
@@ -88,7 +122,6 @@ export async function GET(request: Request) {
         'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
         'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
         'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Netlify-Vary': 'query',
       },
     });
   } catch (error) {

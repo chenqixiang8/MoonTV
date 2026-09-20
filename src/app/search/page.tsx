@@ -16,7 +16,6 @@ import { SearchResult } from '@/lib/types';
 import { yellowWords } from '@/lib/yellow';
 
 import PageLayout from '@/components/PageLayout';
-import SearchSuggestions from '@/components/SearchSuggestions';
 import VideoCard from '@/components/VideoCard';
 
 function SearchPageClient() {
@@ -31,7 +30,6 @@ function SearchPageClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // 获取默认聚合设置：只读取用户本地设置，默认为 true
   const getDefaultAggregate = () => {
@@ -153,13 +151,11 @@ function SearchPageClient() {
     if (query) {
       setSearchQuery(query);
       fetchSearchResults(query);
-      setShowSuggestions(false);
 
       // 保存到搜索历史 (事件监听会自动更新界面)
       addSearchHistory(query);
     } else {
       setShowResults(false);
-      setShowSuggestions(false);
     }
   }, [searchParams]);
 
@@ -215,26 +211,6 @@ function SearchPageClient() {
     }
   };
 
-  // 输入框内容变化时触发，显示搜索建议
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-
-    if (value.trim()) {
-      setShowSuggestions(true);
-    } else {
-      setShowSuggestions(false);
-    }
-  };
-
-  // 搜索框聚焦时触发，显示搜索建议
-  const handleInputFocus = () => {
-    if (searchQuery.trim()) {
-      setShowSuggestions(true);
-    }
-  };
-
-  // 搜索表单提交时触发，处理搜索逻辑
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = searchQuery.trim().replace(/\s+/g, ' ');
@@ -244,7 +220,6 @@ function SearchPageClient() {
     setSearchQuery(trimmed);
     setIsLoading(true);
     setShowResults(true);
-    setShowSuggestions(false);
 
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
     // 直接发请求
@@ -252,19 +227,6 @@ function SearchPageClient() {
 
     // 保存到搜索历史 (事件监听会自动更新界面)
     addSearchHistory(trimmed);
-  };
-
-  const handleSuggestionSelect = (suggestion: string) => {
-    setSearchQuery(suggestion);
-    setShowSuggestions(false);
-
-    // 自动执行搜索
-    setIsLoading(true);
-    setShowResults(true);
-
-    router.push(`/search?q=${encodeURIComponent(suggestion)}`);
-    fetchSearchResults(suggestion);
-    addSearchHistory(suggestion);
   };
 
   // 返回顶部功能
@@ -293,18 +255,9 @@ function SearchPageClient() {
                 id='searchInput'
                 type='text'
                 value={searchQuery}
-                onChange={handleInputChange}
-                onFocus={handleInputFocus}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='搜索电影、电视剧...'
                 className='w-full h-12 rounded-lg bg-gray-50/80 py-3 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
-              />
-
-              {/* 搜索建议 */}
-              <SearchSuggestions
-                query={searchQuery}
-                isVisible={showSuggestions}
-                onSelect={handleSuggestionSelect}
-                onClose={() => setShowSuggestions(false)}
               />
             </div>
           </form>
@@ -369,12 +322,12 @@ function SearchPageClient() {
                       >
                         <VideoCard
                           id={item.id}
-                          title={item.title}
+                          title={item.title + ' ' + item.type_name}
                           poster={item.poster}
                           episodes={item.episodes.length}
                           source={item.source}
                           source_name={item.source_name}
-                          douban_id={item.douban_id}
+                          douban_id={item.douban_id?.toString()}
                           query={
                             searchQuery.trim() !== item.title
                               ? searchQuery.trim()

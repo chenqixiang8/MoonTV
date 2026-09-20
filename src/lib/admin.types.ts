@@ -4,10 +4,8 @@ export interface AdminConfig {
     Announcement: string;
     SearchDownstreamMaxPage: number;
     SiteInterfaceCacheTime: number;
-    DoubanProxyType: string;
+    ImageProxy: string;
     DoubanProxy: string;
-    DoubanImageProxyType: string;
-    DoubanImageProxy: string;
     DisableYellowFilter: boolean;
   };
   UserConfig: {

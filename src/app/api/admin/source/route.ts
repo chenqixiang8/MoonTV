@@ -7,7 +7,7 @@ import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
 import { IStorage } from '@/lib/types';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // 支持的操作类型
 type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort';
@@ -45,14 +45,14 @@ export async function POST(request: NextRequest) {
 
     // 获取配置与存储
     const adminConfig = await getConfig();
-    const storage: IStorage | null = await getStorage();
+    const storage: IStorage | null = getStorage();
 
     // 权限与身份校验
     if (username !== process.env.USERNAME) {
       const userEntry = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
       );
-      if (!userEntry || userEntry.role !== 'admin' || userEntry.banned) {
+      if (!userEntry || userEntry.role !== 'admin') {
         return NextResponse.json({ error: '权限不足' }, { status: 401 });
       }
     }

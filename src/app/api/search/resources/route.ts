@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAvailableApiSites, getCacheTime } from '@/lib/config';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // OrionTV 兼容接口
 export async function GET() {
@@ -15,7 +15,6 @@ export async function GET() {
         'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
         'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
         'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Netlify-Vary': 'query',
       },
     });
   } catch (error) {

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Heart, Link, PlayCircleIcon, Trash2 } from 'lucide-react';
+import { CheckCircle, Heart, Link, PlayCircleIcon } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,12 +30,11 @@ interface VideoCardProps {
   year?: string;
   from: 'playrecord' | 'favorite' | 'search' | 'douban';
   currentEpisode?: number;
-  douban_id?: number;
+  douban_id?: string;
   onDelete?: () => void;
   rate?: string;
   items?: SearchResult[];
   type?: string;
-  isBangumi?: boolean;
 }
 
 export default function VideoCard({
@@ -55,7 +54,6 @@ export default function VideoCard({
   rate,
   items,
   type = '',
-  isBangumi = false,
 }: VideoCardProps) {
   const router = useRouter();
   const [favorited, setFavorited] = useState(false);
@@ -65,7 +63,7 @@ export default function VideoCard({
 
   const aggregateData = useMemo(() => {
     if (!isAggregate || !items) return null;
-    const countMap = new Map<number, number>();
+    const countMap = new Map<string | number, number>();
     const episodeCountMap = new Map<number, number>();
     items.forEach((item) => {
       if (item.douban_id && item.douban_id !== 0) {
@@ -77,9 +75,11 @@ export default function VideoCard({
       }
     });
 
-    const getMostFrequent = (map: Map<number, number>) => {
+    const getMostFrequent = <T extends string | number>(
+      map: Map<T, number>
+    ) => {
       let maxCount = 0;
-      let result: number | undefined;
+      let result: T | undefined;
       map.forEach((cnt, key) => {
         if (cnt > maxCount) {
           maxCount = cnt;
@@ -100,7 +100,9 @@ export default function VideoCard({
   const actualPoster = aggregateData?.first.poster ?? poster;
   const actualSource = aggregateData?.first.source ?? source;
   const actualId = aggregateData?.first.id ?? id;
-  const actualDoubanId = aggregateData?.mostFrequentDoubanId ?? douban_id;
+  const actualDoubanId = String(
+    aggregateData?.mostFrequentDoubanId ?? douban_id
+  );
   const actualEpisodes = aggregateData?.mostFrequentEpisodes ?? episodes;
   const actualYear = aggregateData?.first.year ?? year;
   const actualQuery = query || '';
@@ -281,18 +283,7 @@ export default function VideoCard({
           fill
           className='object-cover'
           referrerPolicy='no-referrer'
-          loading='lazy'
           onLoadingComplete={() => setIsLoading(true)}
-          onError={(e) => {
-            // 图片加载失败时的重试机制
-            const img = e.target as HTMLImageElement;
-            if (!img.dataset.retried) {
-              img.dataset.retried = 'true';
-              setTimeout(() => {
-                img.src = processImageUrl(actualPoster);
-              }, 2000);
-            }
-          }}
         />
 
         {/* 悬浮遮罩 */}
@@ -313,10 +304,10 @@ export default function VideoCard({
         {(config.showHeart || config.showCheckCircle) && (
           <div className='absolute bottom-3 right-3 flex gap-3 opacity-0 translate-y-2 transition-all duration-300 ease-in-out group-hover:opacity-100 group-hover:translate-y-0'>
             {config.showCheckCircle && (
-              <Trash2
+              <CheckCircle
                 onClick={handleDeleteRecord}
                 size={20}
-                className='text-white transition-all duration-300 ease-out hover:stroke-red-500 hover:scale-[1.1]'
+                className='text-white transition-all duration-300 ease-out hover:stroke-green-500 hover:scale-[1.1]'
               />
             )}
             {config.showHeart && (
@@ -349,13 +340,9 @@ export default function VideoCard({
         )}
 
         {/* 豆瓣链接 */}
-        {config.showDoubanLink && actualDoubanId && actualDoubanId !== 0 && (
+        {config.showDoubanLink && actualDoubanId && (
           <a
-            href={
-              isBangumi
-                ? `https://bgm.tv/subject/${actualDoubanId.toString()}`
-                : `https://movie.douban.com/subject/${actualDoubanId.toString()}`
-            }
+            href={`https://movie.douban.com/subject/${actualDoubanId}`}
             target='_blank'
             rel='noopener noreferrer'
             onClick={(e) => e.stopPropagation()}

@@ -6,12 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { GetBangumiCalendarData } from '@/lib/bangumi.client';
-import {
-  getDoubanCategories,
-  getDoubanList,
-  getDoubanRecommends,
-} from '@/lib/douban.client';
+import { getDoubanCategories, getDoubanList } from '@/lib/douban.client';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 
 import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
@@ -32,16 +27,6 @@ function DoubanPageClient() {
   const loadingRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 用于存储最新参数值的 refs
-  const currentParamsRef = useRef({
-    type: '',
-    primarySelection: '',
-    secondarySelection: '',
-    multiLevelSelection: {} as Record<string, string>,
-    selectedWeekday: '',
-    currentPage: 0,
-  });
-
   const type = searchParams.get('type') || 'movie';
 
   // 获取 runtimeConfig 中的自定义分类数据
@@ -51,10 +36,7 @@ function DoubanPageClient() {
 
   // 选择器状态 - 完全独立，不依赖URL参数
   const [primarySelection, setPrimarySelection] = useState<string>(() => {
-    if (type === 'movie') return '热门';
-    if (type === 'tv' || type === 'show') return '最近热门';
-    if (type === 'anime') return '每日放送';
-    return '';
+    return type === 'movie' ? '热门' : '';
   });
   const [secondarySelection, setSecondarySelection] = useState<string>(() => {
     if (type === 'movie') return '全部';
@@ -63,21 +45,6 @@ function DoubanPageClient() {
     return '全部';
   });
 
-  // MultiLevelSelector 状态
-  const [multiLevelValues, setMultiLevelValues] = useState<
-    Record<string, string>
-  >({
-    type: 'all',
-    region: 'all',
-    year: 'all',
-    platform: 'all',
-    label: 'all',
-    sort: 'T',
-  });
-
-  // 星期选择器状态
-  const [selectedWeekday, setSelectedWeekday] = useState<string>('');
-
   // 获取自定义分类数据
   useEffect(() => {
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
@@ -85,25 +52,6 @@ function DoubanPageClient() {
       setCustomCategories(runtimeConfig.CUSTOM_CATEGORIES);
     }
   }, []);
-
-  // 同步最新参数值到 ref
-  useEffect(() => {
-    currentParamsRef.current = {
-      type,
-      primarySelection,
-      secondarySelection,
-      multiLevelSelection: multiLevelValues,
-      selectedWeekday,
-      currentPage,
-    };
-  }, [
-    type,
-    primarySelection,
-    secondarySelection,
-    multiLevelValues,
-    selectedWeekday,
-    currentPage,
-  ]);
 
   // 初始化时标记选择器为准备好状态
   useEffect(() => {
@@ -152,29 +100,16 @@ function DoubanPageClient() {
         setPrimarySelection('热门');
         setSecondarySelection('全部');
       } else if (type === 'tv') {
-        setPrimarySelection('最近热门');
+        setPrimarySelection('');
         setSecondarySelection('tv');
       } else if (type === 'show') {
-        setPrimarySelection('最近热门');
+        setPrimarySelection('');
         setSecondarySelection('show');
-      } else if (type === 'anime') {
-        setPrimarySelection('每日放送');
-        setSecondarySelection('全部');
       } else {
         setPrimarySelection('');
         setSecondarySelection('全部');
       }
     }
-
-    // 清空 MultiLevelSelector 状态
-    setMultiLevelValues({
-      type: 'all',
-      region: 'all',
-      year: 'all',
-      platform: 'all',
-      label: 'all',
-      sort: 'T',
-    });
 
     // 使用短暂延迟确保状态更新完成后标记选择器准备好
     const timer = setTimeout(() => {
@@ -186,39 +121,6 @@ function DoubanPageClient() {
 
   // 生成骨架屏数据
   const skeletonData = Array.from({ length: 25 }, (_, index) => index);
-
-  // 参数快照比较函数
-  const isSnapshotEqual = useCallback(
-    (
-      snapshot1: {
-        type: string;
-        primarySelection: string;
-        secondarySelection: string;
-        multiLevelSelection: Record<string, string>;
-        selectedWeekday: string;
-        currentPage: number;
-      },
-      snapshot2: {
-        type: string;
-        primarySelection: string;
-        secondarySelection: string;
-        multiLevelSelection: Record<string, string>;
-        selectedWeekday: string;
-        currentPage: number;
-      }
-    ) => {
-      return (
-        snapshot1.type === snapshot2.type &&
-        snapshot1.primarySelection === snapshot2.primarySelection &&
-        snapshot1.secondarySelection === snapshot2.secondarySelection &&
-        snapshot1.selectedWeekday === snapshot2.selectedWeekday &&
-        snapshot1.currentPage === snapshot2.currentPage &&
-        JSON.stringify(snapshot1.multiLevelSelection) ===
-          JSON.stringify(snapshot2.multiLevelSelection)
-      );
-    },
-    []
-  );
 
   // 生成API请求参数的辅助函数
   const getRequestParams = useCallback(
@@ -248,24 +150,8 @@ function DoubanPageClient() {
 
   // 防抖的数据加载函数
   const loadInitialData = useCallback(async () => {
-    // 创建当前参数的快照
-    const requestSnapshot = {
-      type,
-      primarySelection,
-      secondarySelection,
-      multiLevelSelection: multiLevelValues,
-      selectedWeekday,
-      currentPage: 0,
-    };
-
     try {
       setLoading(true);
-      // 确保在加载初始数据时重置页面状态
-      setDoubanData([]);
-      setCurrentPage(0);
-      setHasMore(true);
-      setIsLoadingMore(false);
-
       let data: DoubanResult;
 
       if (type === 'custom') {
@@ -285,101 +171,24 @@ function DoubanPageClient() {
         } else {
           throw new Error('没有找到对应的分类');
         }
-      } else if (type === 'anime' && primarySelection === '每日放送') {
-        const calendarData = await GetBangumiCalendarData();
-        const weekdayData = calendarData.find(
-          (item) => item.weekday.en === selectedWeekday
-        );
-        if (weekdayData) {
-          data = {
-            code: 200,
-            message: 'success',
-            list: weekdayData.items.map((item) => ({
-              id: item.id?.toString() || '',
-              title: item.name_cn || item.name,
-              poster:
-                item.images.large ||
-                item.images.common ||
-                item.images.medium ||
-                item.images.small ||
-                item.images.grid,
-              rate: item.rating?.score?.toString() || '',
-              year: item.air_date?.split('-')?.[0] || '',
-            })),
-          };
-        } else {
-          throw new Error('没有找到对应的日期');
-        }
-      } else if (type === 'anime') {
-        data = await getDoubanRecommends({
-          kind: primarySelection === '番剧' ? 'tv' : 'movie',
-          pageLimit: 25,
-          pageStart: 0,
-          category: '动画',
-          format: primarySelection === '番剧' ? '电视剧' : '',
-          region: multiLevelValues.region
-            ? (multiLevelValues.region as string)
-            : '',
-          year: multiLevelValues.year ? (multiLevelValues.year as string) : '',
-          platform: multiLevelValues.platform
-            ? (multiLevelValues.platform as string)
-            : '',
-          sort: multiLevelValues.sort ? (multiLevelValues.sort as string) : '',
-          label: multiLevelValues.label
-            ? (multiLevelValues.label as string)
-            : '',
-        });
-      } else if (primarySelection === '全部') {
-        data = await getDoubanRecommends({
-          kind: type === 'show' ? 'tv' : (type as 'tv' | 'movie'),
-          pageLimit: 25,
-          pageStart: 0, // 初始数据加载始终从第一页开始
-          category: multiLevelValues.type
-            ? (multiLevelValues.type as string)
-            : '',
-          format: type === 'show' ? '综艺' : type === 'tv' ? '电视剧' : '',
-          region: multiLevelValues.region
-            ? (multiLevelValues.region as string)
-            : '',
-          year: multiLevelValues.year ? (multiLevelValues.year as string) : '',
-          platform: multiLevelValues.platform
-            ? (multiLevelValues.platform as string)
-            : '',
-          sort: multiLevelValues.sort ? (multiLevelValues.sort as string) : '',
-          label: multiLevelValues.label
-            ? (multiLevelValues.label as string)
-            : '',
-        });
       } else {
         data = await getDoubanCategories(getRequestParams(0));
       }
 
       if (data.code === 200) {
-        // 检查参数是否仍然一致，如果一致才设置数据
-        // 使用 ref 获取最新的当前值
-        const currentSnapshot = { ...currentParamsRef.current };
-
-        if (isSnapshotEqual(requestSnapshot, currentSnapshot)) {
-          setDoubanData(data.list);
-          setHasMore(data.list.length !== 0);
-          setLoading(false);
-        } else {
-          console.log('参数不一致，不执行任何操作，避免设置过期数据');
-        }
-        // 如果参数不一致，不执行任何操作，避免设置过期数据
+        setDoubanData(data.list);
+        setHasMore(data.list.length === 25);
+        setLoading(false);
       } else {
         throw new Error(data.message || '获取数据失败');
       }
     } catch (err) {
       console.error(err);
-      setLoading(false); // 发生错误时总是停止loading状态
     }
   }, [
     type,
     primarySelection,
     secondarySelection,
-    multiLevelValues,
-    selectedWeekday,
     getRequestParams,
     customCategories,
   ]);
@@ -390,6 +199,12 @@ function DoubanPageClient() {
     if (!selectorsReady) {
       return;
     }
+
+    // 重置页面状态
+    setDoubanData([]);
+    setCurrentPage(0);
+    setHasMore(true);
+    setIsLoadingMore(false);
 
     // 清除之前的防抖定时器
     if (debounceTimeoutRef.current) {
@@ -412,8 +227,6 @@ function DoubanPageClient() {
     type,
     primarySelection,
     secondarySelection,
-    multiLevelValues,
-    selectedWeekday,
     loadInitialData,
   ]);
 
@@ -421,16 +234,6 @@ function DoubanPageClient() {
   useEffect(() => {
     if (currentPage > 0) {
       const fetchMoreData = async () => {
-        // 创建当前参数的快照
-        const requestSnapshot = {
-          type,
-          primarySelection,
-          secondarySelection,
-          multiLevelSelection: multiLevelValues,
-          selectedWeekday,
-          currentPage,
-        };
-
         try {
           setIsLoadingMore(true);
 
@@ -453,61 +256,6 @@ function DoubanPageClient() {
             } else {
               throw new Error('没有找到对应的分类');
             }
-          } else if (type === 'anime' && primarySelection === '每日放送') {
-            // 每日放送模式下，不进行数据请求，返回空数据
-            data = {
-              code: 200,
-              message: 'success',
-              list: [],
-            };
-          } else if (type === 'anime') {
-            data = await getDoubanRecommends({
-              kind: primarySelection === '番剧' ? 'tv' : 'movie',
-              pageLimit: 25,
-              pageStart: currentPage * 25,
-              category: '动画',
-              format: primarySelection === '番剧' ? '电视剧' : '',
-              region: multiLevelValues.region
-                ? (multiLevelValues.region as string)
-                : '',
-              year: multiLevelValues.year
-                ? (multiLevelValues.year as string)
-                : '',
-              platform: multiLevelValues.platform
-                ? (multiLevelValues.platform as string)
-                : '',
-              sort: multiLevelValues.sort
-                ? (multiLevelValues.sort as string)
-                : '',
-              label: multiLevelValues.label
-                ? (multiLevelValues.label as string)
-                : '',
-            });
-          } else if (primarySelection === '全部') {
-            data = await getDoubanRecommends({
-              kind: type === 'show' ? 'tv' : (type as 'tv' | 'movie'),
-              pageLimit: 25,
-              pageStart: currentPage * 25,
-              category: multiLevelValues.type
-                ? (multiLevelValues.type as string)
-                : '',
-              format: type === 'show' ? '综艺' : type === 'tv' ? '电视剧' : '',
-              region: multiLevelValues.region
-                ? (multiLevelValues.region as string)
-                : '',
-              year: multiLevelValues.year
-                ? (multiLevelValues.year as string)
-                : '',
-              platform: multiLevelValues.platform
-                ? (multiLevelValues.platform as string)
-                : '',
-              sort: multiLevelValues.sort
-                ? (multiLevelValues.sort as string)
-                : '',
-              label: multiLevelValues.label
-                ? (multiLevelValues.label as string)
-                : '',
-            });
           } else {
             data = await getDoubanCategories(
               getRequestParams(currentPage * 25)
@@ -515,16 +263,8 @@ function DoubanPageClient() {
           }
 
           if (data.code === 200) {
-            // 检查参数是否仍然一致，如果一致才设置数据
-            // 使用 ref 获取最新的当前值
-            const currentSnapshot = { ...currentParamsRef.current };
-
-            if (isSnapshotEqual(requestSnapshot, currentSnapshot)) {
-              setDoubanData((prev) => [...prev, ...data.list]);
-              setHasMore(data.list.length !== 0);
-            } else {
-              console.log('参数不一致，不执行任何操作，避免设置过期数据');
-            }
+            setDoubanData((prev) => [...prev, ...data.list]);
+            setHasMore(data.list.length === 25);
           } else {
             throw new Error(data.message || '获取数据失败');
           }
@@ -543,8 +283,6 @@ function DoubanPageClient() {
     primarySelection,
     secondarySelection,
     customCategories,
-    multiLevelValues,
-    selectedWeekday,
   ]);
 
   // 设置滚动监听
@@ -584,21 +322,6 @@ function DoubanPageClient() {
       // 只有当值真正改变时才设置loading状态
       if (value !== primarySelection) {
         setLoading(true);
-        // 立即重置页面状态，防止基于旧状态的请求
-        setCurrentPage(0);
-        setDoubanData([]);
-        setHasMore(true);
-        setIsLoadingMore(false);
-
-        // 清空 MultiLevelSelector 状态
-        setMultiLevelValues({
-          type: 'all',
-          region: 'all',
-          year: 'all',
-          platform: 'all',
-          label: 'all',
-          sort: 'T',
-        });
 
         // 如果是自定义分类模式，同时更新一级和二级选择器
         if (type === 'custom' && customCategories.length > 0) {
@@ -613,17 +336,7 @@ function DoubanPageClient() {
             setPrimarySelection(value);
           }
         } else {
-          // 电视剧和综艺切换到"最近热门"时，重置二级分类为第一个选项
-          if ((type === 'tv' || type === 'show') && value === '最近热门') {
-            setPrimarySelection(value);
-            if (type === 'tv') {
-              setSecondarySelection('tv');
-            } else if (type === 'show') {
-              setSecondarySelection('show');
-            }
-          } else {
-            setPrimarySelection(value);
-          }
+          setPrimarySelection(value);
         }
       }
     },
@@ -635,51 +348,11 @@ function DoubanPageClient() {
       // 只有当值真正改变时才设置loading状态
       if (value !== secondarySelection) {
         setLoading(true);
-        // 立即重置页面状态，防止基于旧状态的请求
-        setCurrentPage(0);
-        setDoubanData([]);
-        setHasMore(true);
-        setIsLoadingMore(false);
         setSecondarySelection(value);
       }
     },
     [secondarySelection]
   );
-
-  const handleMultiLevelChange = useCallback(
-    (values: Record<string, string>) => {
-      // 比较两个对象是否相同，忽略顺序
-      const isEqual = (
-        obj1: Record<string, string>,
-        obj2: Record<string, string>
-      ) => {
-        const keys1 = Object.keys(obj1).sort();
-        const keys2 = Object.keys(obj2).sort();
-
-        if (keys1.length !== keys2.length) return false;
-
-        return keys1.every((key) => obj1[key] === obj2[key]);
-      };
-
-      // 如果相同，则不设置loading状态
-      if (isEqual(values, multiLevelValues)) {
-        return;
-      }
-
-      setLoading(true);
-      // 立即重置页面状态，防止基于旧状态的请求
-      setCurrentPage(0);
-      setDoubanData([]);
-      setHasMore(true);
-      setIsLoadingMore(false);
-      setMultiLevelValues(values);
-    },
-    [multiLevelValues]
-  );
-
-  const handleWeekdayChange = useCallback((weekday: string) => {
-    setSelectedWeekday(weekday);
-  }, []);
 
   const getPageTitle = () => {
     // 根据 type 生成标题
@@ -687,18 +360,9 @@ function DoubanPageClient() {
       ? '电影'
       : type === 'tv'
       ? '电视剧'
-      : type === 'anime'
-      ? '动漫'
       : type === 'show'
       ? '综艺'
       : '自定义';
-  };
-
-  const getPageDescription = () => {
-    if (type === 'anime' && primarySelection === '每日放送') {
-      return '来自 Bangumi 番组计划的精选内容';
-    }
-    return '来自豆瓣的精选内容';
   };
 
   const getActivePath = () => {
@@ -721,7 +385,7 @@ function DoubanPageClient() {
               {getPageTitle()}
             </h1>
             <p className='text-sm sm:text-base text-gray-600 dark:text-gray-400'>
-              {getPageDescription()}
+              来自豆瓣的精选内容
             </p>
           </div>
 
@@ -729,13 +393,11 @@ function DoubanPageClient() {
           {type !== 'custom' ? (
             <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
               <DoubanSelector
-                type={type as 'movie' | 'tv' | 'show' | 'anime'}
+                type={type as 'movie' | 'tv' | 'show'}
                 primarySelection={primarySelection}
                 secondarySelection={secondarySelection}
                 onPrimaryChange={handlePrimaryChange}
                 onSecondaryChange={handleSecondaryChange}
-                onMultiLevelChange={handleMultiLevelChange}
-                onWeekdayChange={handleWeekdayChange}
               />
             </div>
           ) : (
@@ -765,13 +427,10 @@ function DoubanPageClient() {
                       from='douban'
                       title={item.title}
                       poster={item.poster}
-                      douban_id={Number(item.id)}
+                      douban_id={item.id}
                       rate={item.rate}
                       year={item.year}
                       type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
-                      isBangumi={
-                        type === 'anime' && primarySelection === '每日放送'
-                      }
                     />
                   </div>
                 ))}

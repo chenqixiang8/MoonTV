@@ -3,9 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
-import { loadSettings } from '@/lib/database-settings';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
+
+// 读取存储类型环境变量，默认 localstorage
+const STORAGE_TYPE =
+  (process.env.NEXT_PUBLIC_STORAGE_TYPE as
+    | 'localstorage'
+    | 'redis'
+    | 'd1'
+    | 'upstash'
+    | undefined) || 'localstorage';
 
 // 生成签名
 async function generateSignature(
@@ -39,8 +47,7 @@ async function generateAuthCookie(
   username?: string,
   password?: string,
   role?: 'owner' | 'admin' | 'user',
-  includePassword = false,
-  signingSecret = ''
+  includePassword = false
 ): Promise<string> {
   const authData: any = { role: role || 'user' };
 
@@ -49,10 +56,10 @@ async function generateAuthCookie(
     authData.password = password;
   }
 
-  if (username && signingSecret) {
+  if (username && process.env.PASSWORD) {
     authData.username = username;
     // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, signingSecret);
+    const signature = await generateSignature(username, process.env.PASSWORD);
     authData.signature = signature;
     authData.timestamp = Date.now(); // 添加时间戳防重放攻击
   }
@@ -62,13 +69,9 @@ async function generateAuthCookie(
 
 export async function POST(req: NextRequest) {
   try {
-    const runtimeSettings = await loadSettings();
-    const STORAGE_TYPE = runtimeSettings?.storageType || 'localstorage';
-    const ownerPassword = runtimeSettings?.password || '';
-    const ownerUsername = runtimeSettings?.username || '';
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
-      const envPassword = ownerPassword;
+      const envPassword = process.env.PASSWORD;
 
       // 未配置 PASSWORD 时直接放行
       if (!envPassword) {
@@ -104,8 +107,7 @@ export async function POST(req: NextRequest) {
         undefined,
         password,
         'user',
-        true,
-        ownerPassword
+        true
       ); // localstorage 模式包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -133,8 +135,8 @@ export async function POST(req: NextRequest) {
 
     // 可能是站长，直接读环境变量
     if (
-      username === ownerUsername &&
-      password === ownerPassword
+      username === process.env.USERNAME &&
+      password === process.env.PASSWORD
     ) {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
@@ -142,8 +144,7 @@ export async function POST(req: NextRequest) {
         username,
         password,
         'owner',
-        false,
-        ownerPassword
+        false
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } else if (username === ownerUsername) {
+    } else if (username === process.env.USERNAME) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 
@@ -183,8 +184,7 @@ export async function POST(req: NextRequest) {
         username,
         password,
         user?.role || 'user',
-        false,
-        ownerPassword
+        false
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期

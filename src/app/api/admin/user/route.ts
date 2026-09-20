@@ -5,10 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
-import { loadSettings, saveSettings } from '@/lib/database-settings';
 import { IStorage } from '@/lib/types';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // 支持的操作类型
 const ACTIONS = [
@@ -23,8 +22,7 @@ const ACTIONS = [
 ] as const;
 
 export async function POST(request: NextRequest) {
-  const runtimeSettings = await loadSettings();
-  const storageType = runtimeSettings?.storageType || 'localstorage';
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {
     return NextResponse.json(
       {
@@ -77,17 +75,17 @@ export async function POST(request: NextRequest) {
 
     // 获取配置与存储
     const adminConfig = await getConfig();
-    const storage: IStorage | null = await getStorage();
+    const storage: IStorage | null = getStorage();
 
     // 判定操作者角色
     let operatorRole: 'owner' | 'admin';
-    if (username === runtimeSettings?.username) {
+    if (username === process.env.USERNAME) {
       operatorRole = 'owner';
     } else {
       const userEntry = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
       );
-      if (!userEntry || userEntry.role !== 'admin' || userEntry.banned) {
+      if (!userEntry || userEntry.role !== 'admin') {
         return NextResponse.json({ error: '权限不足' }, { status: 401 });
       }
       operatorRole = 'admin';
@@ -316,13 +314,6 @@ export async function POST(request: NextRequest) {
     // 将更新后的配置写入数据库
     if (storage && typeof (storage as any).setAdminConfig === 'function') {
       await (storage as any).setAdminConfig(adminConfig);
-    }
-
-    if (runtimeSettings && action === 'setAllowRegister') {
-      await saveSettings({
-        ...runtimeSettings,
-        enableRegister: Boolean(allowRegister),
-      });
     }
 
     return NextResponse.json(

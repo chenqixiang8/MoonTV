@@ -4,7 +4,7 @@ import { getCacheTime, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { yellowWords } from '@/lib/yellow';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 // OrionTV 兼容接口
 export async function GET(request: Request) {
@@ -21,7 +21,6 @@ export async function GET(request: Request) {
           'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
           'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
           'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Netlify-Vary': 'query',
         },
       }
     );
@@ -69,7 +68,6 @@ export async function GET(request: Request) {
             'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
             'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
             'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-            'Netlify-Vary': 'query',
           },
         }
       );
