@@ -1,4 +1,0 @@
-'use client';
-import { useEffect } from 'react';
-const test=async(url:string)=>{const t=performance.now();try{await fetch(url,{method:'HEAD',cache:'no-store',mode:'no-cors',signal:AbortSignal.timeout(5000)});return {url,ms:Math.round(performance.now()-t)}}catch{return {url,ms:99999}}};
-export default function ClientLatencySelector(){useEffect(()=>{fetch('/api/client-latency').then(r=>r.json()).then(async c=>{if(!c.enabled)return;for(const [name,urls] of Object.entries({doubanData:c.doubanDataUrls,doubanImage:c.doubanImageUrls,cdn:c.cdnUrls})){const list=await Promise.all(((urls as string[])||[]).map(test));const best=list.sort((a,b)=>a.ms-b.ms)[0];if(best&&best.ms<99999){localStorage.setItem(`autoBest:${name}`,best.url);localStorage.setItem(`autoLatency:${name}`,String(best.ms));}}}).catch(()=>undefined)},[]);return null;}
